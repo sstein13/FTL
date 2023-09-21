@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Volume Forecaster</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.4/jquery.min.js"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
+</head>
+<body>
+
+  <div class="container">
+    <h1>Tactical Volume Forecaster</h1>
+    <p>Which unit are you forecasting for?</p>
+    <select class="form-select" aria-label="Default select example" id="unit" onchange="changeLink()">
+      <option selected disabled>...</option>
+      <option value="Sales" id="Sales">Sales</option>
+      <option value="Client_Service" id="Client Service">Client Service</option>
+      <option value="Agency" id="Agency">Agency</option>
+      <option value="Experts" id="Experts">Experts</option>
+    </select><br/><br/>
+  
+    <form method="post">
+      {% csrf_token %}
+      <button href="/volume_forecaster/" class="btn btn-info" role="button" id="forecast_button" type="submit" name="forecast_button" value="none">Get Forecast</button>
+    </form>
+  
+  </div>
+  
+  <script>
+    function changeLink() {
+      var selectedUnit = document.getElementById("unit").value;
+      var unitLink = "/volume_forecaster/result/" + selectedUnit;
+      document.getElementById("forecast_button").href = unitLink;
+      document.getElementById("forecast_button").value = selectedUnit;
+    }
+  </script>
+
+</body>
+</html>
