@@ -7,7 +7,7 @@ import copy
 
 
 # Connect to ODS Database
-conn = pyodbc.connect('DRIVER={SQL Server};SERVER=aahssdbods.aah.local;DATABASE=OperationalDataStore;Trusted_Connection=yes')
+conn = pyodbc.connect('DRIVER={SQL Server};SERVER=aahssdbods.amfam.com;DATABASE=OperationalDataStore;Trusted_Connection=yes')
 cursor = conn.cursor()
 
 
