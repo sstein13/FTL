@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Pattern Forecaster</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.4/jquery.min.js"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
+</head>
+<body>
+  <script>
+    var selectedUnit = "blank"
+    var selectedDOW = "blank"
+    var Link = "blank"
+  </script>
+
+  <div class="container">
+    <h1>Pattern Forecaster</h1>
+    <p>Which unit are you forecasting for?</p>
+    <select class="form-select" aria-label="Default select example" id="unit" onchange="changeUnit()">
+      <option selected disabled>...</option>
+      <option value="Sales" id="Sales">Sales</option>
+      <option value="Client_Service" id="Client Service">Client Service</option>
+      <option value="Agency" id="Agency">Agency</option>
+      <option value="Experts" id="Experts">Experts</option>
+    </select><br/><br/>
+
+    <p>Which day of week are you forecasting for?</p>
+    <select class="form-select" aria-label="Default select example" id="DOW" onchange="changeDOW()">
+        <option selected disabled>...</option>
+        <option value="Monday" id="Monday">Monday</option>
+        <option value="Tuesday" id="Tuesday">Tuesday</option>
+        <option value="Wednesday" id="Wednesday">Wednesday</option>
+        <option value="Thursday" id="Thursday">Thursday</option>
+        <option value="Friday" id="Friday">Friday</option>
+        <option value="Saturday" id="Saturday">Saturday</option>
+        <option value="Sunday" id="Sunday">Sunday</option>
+      </select><br/><br/>
+  
+    <form method="post">
+      {% csrf_token %}
+      <button href="/pattern_forecaster/" class="btn btn-info" role="button" id="forecast_button" type="submit" name="forecast_button" value="blank">Get Forecast</button>
+    </form>
+  
+  </div>
+  
+  <script>
+    function changeUnit() {
+      selectedUnit = document.getElementById("unit").value;
+      Link = "/pattern_forecaster/result/" + selectedUnit + "/" + selectedDOW;
+      document.getElementById("forecast_button").href = Link;
+      document.getElementById("forecast_button").value = selectedUnit + "/" + selectedDOW;
+    }
+    function changeDOW() {
+      selectedDOW = document.getElementById("DOW").value;
+      Link = "/pattern_forecaster/result/" + selectedUnit + "/" + selectedDOW;
+      document.getElementById("forecast_button").href = Link;
+      document.getElementById("forecast_button").value = selectedUnit + "/" + selectedDOW;
+    }
+  </script>
+
+</body>
+</html>

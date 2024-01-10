@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "volume_forecaster.apps.VolumeForecasterConfig",
+    "pattern_forecaster.apps.PatternForecasterConfig",
 ]
 
 MIDDLEWARE = [

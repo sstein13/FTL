@@ -15,10 +15,10 @@ def main(request):
         if "_" in unit_name:
             unit_name = unit_name.replace("_", " ")
         # import function to run
-        from volume_forecaster.forecaster import tactical_volume_forecast
+        from volume_forecaster.forecaster import tactical_volume_forecast_v2
         # call function
         global forecast
-        forecast = tactical_volume_forecast(unit_name)
+        forecast = tactical_volume_forecast_v2(unit_name)
         # return user to required page
         return HttpResponseRedirect("result/{}/".format(unit))
     return HttpResponse(template.render(context,request))
@@ -27,14 +27,12 @@ def result(request, unit_name):
     from volume_forecaster.forecaster import object_to_str, start_of_week, today
     template = loader.get_template("volume_forecaster/result.html")
     unit = forecast["unit"]
-    accuracy = forecast["accuracy"]
-    method = forecast["method"]
     week1 = start_of_week(object_to_str(today), 1)
     week2 = start_of_week(object_to_str(today), 2)
     week3 = start_of_week(object_to_str(today), 3)
-    week1_forecast = forecast[week1]["forecast"]
-    week2_forecast = forecast[week2]["forecast"]
-    week3_forecast = forecast[week3]["forecast"]
+    week1_forecast = forecast[week1]
+    week2_forecast = forecast[week2]
+    week3_forecast = forecast[week3]
 
     week1_forecast_html = '<table class="table"><thead><tr><th scope="col">Day of Week</th><th scope="col">Volume Forecast</th></tr></thead>'
     for dow in week1_forecast:
@@ -52,8 +50,6 @@ def result(request, unit_name):
     week3_forecast_html = week3_forecast_html + "</tbody></table>"
 
     context = {"unit":unit,
-               "accuracy":accuracy,
-               "method":method,
                "week1":week1,
                "week2":week2,
                "week3":week3,
