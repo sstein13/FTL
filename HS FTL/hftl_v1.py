@@ -29,15 +29,17 @@ Where datepart(year, cast(EchoPassDate as date)) = ?
 Group By datepart(year,cast(EchoPassDate as date)), Mdivqueue
 """
 
-# Creates a dataframe from Queue_Mapping
-queues_df = pd.read_excel("Queue_Mapping.xlsx")
-queues_df.drop(["FormGroup", "Channel", "QStartDate", "QEndDate", "Active", "DateModified"], axis=1, inplace=True)
-for idx in range (0,len(queues_df.columns)-1):
-    if queues_df.loc[idx, "System"] == "ECHOPASS":
-        queues_df.drop(index=idx, inplace=True)
+department_mapping_sql = """
+select [Queue], [System], [Group], Subgroup from dbo.DepartmentMapping
+"""
+
+# Maps departments
+cursor.execute(department_mapping_sql)
+sql_output = cursor.fetchall()
+queues_df = pd.DataFrame.from_records(sql_output, columns=[col[0] for col in cursor.description])
 
 # Creates a dataframe from the Define Matching Weeks excel file and cleans data
-define_matching_weeks_df = pd.read_excel("Define Matching Weeks.xlsx")
+define_matching_weeks_df = pd.read_excel("HS FTL\Define Matching Weeks.xlsx")
 define_matching_weeks_df.fillna("none", inplace = True)
 
 def define_dept(df):
@@ -915,7 +917,7 @@ def tactical_volume_forecast(unit):
         return "something's gone horribly wrong"
 
 #RUN FUNCTIONS HERE
-print(method_4("Midvale Home & Auto", "07/16/2023"))
+print(method_4("Midvale Home & Auto"))
 
 
  
