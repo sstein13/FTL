@@ -271,7 +271,11 @@ def gather_data(unit, start_date=start_of_week((object_to_str(today)),1)):
 
     global data_date
     global data_dict
+<<<<<<< HEAD
     global data_unit
+=======
+    global data_
+>>>>>>> 106fbd7aada7dddd35c74ef2a58044e5155f1399
     global yearly_volume_dict
     global master_volume_dict
 
@@ -341,7 +345,11 @@ def gather_data(unit, start_date=start_of_week((object_to_str(today)),1)):
                 comparison_weeks.remove(week)
 
         # Filling in yearly_volume_dict
+<<<<<<< HEAD
         if yearly_volume_dict == {} or data_unit != unit:
+=======
+        if yearly_volume_dict == {}:
+>>>>>>> 106fbd7aada7dddd35c74ef2a58044e5155f1399
             for year in range(2012, int(object_to_str(today)[-4:])+1):
                 data_dict["yearly_volume_dict"][year] = yearly_volume(year, unit)
                 yearly_volume_dict = data_dict["yearly_volume_dict"]

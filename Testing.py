@@ -10,8 +10,13 @@ from sklearn.linear_model import ElasticNet, ElasticNetCV
 from sklearn.linear_model import LinearRegression
 from sklearn.datasets import make_regression
 
+<<<<<<< HEAD
 # Connect to EchoPass Database
 conn = pyodbc.connect('DRIVER={SQL Server};SERVER=camrptsql01;DATABASE=EchoPass;Trusted_Connection=yes')
+=======
+# Connect to DB
+conn = pyodbc.connect('DRIVER={SQL Server};SERVER=aahssdbods.amfam.com;DATABASE=OperationalDataStore;Trusted_Connection=yes')
+>>>>>>> 106fbd7aada7dddd35c74ef2a58044e5155f1399
 cursor = conn.cursor()
 
 
@@ -29,6 +34,7 @@ yearly_volume_dict = {}
 master_volume_dict = {}
 queries_saved = 0
 
+<<<<<<< HEAD
 # Hardcoded data (used when lacking historical data)
 normal_woy = 0.019
 holiday_woy = 0.173
@@ -56,11 +62,27 @@ HSCOM_Thursday_holiday_dow = {"Monday": 0.3517, "Tuesday": 0.2758, "Wednesday": 
 HSCOM_Friday_holiday_dow = {"Monday": 0.3019, "Tuesday": 0.2568, "Wednesday": 0.2448, "Thursday": 0.1965, "Friday": 0, "Saturday": 0, "Sunday": 0}
 HSCOM_Saturday_holiday_dow = {"Monday": 0.2606, "Tuesday": 0.2333, "Wednesday": 0.2079, "Thursday": 0.1892, "Friday": 0.1090, "Saturday": 0, "Sunday": 0}
 HSCOM_Sunday_holiday_dow = {"Monday": 0.1186, "Tuesday": 0.2498, "Wednesday": 0.2179, "Thursday": 0.2078, "Friday": 0.2059, "Saturday": 0, "Sunday": 0}
+=======
+# Creates the dataframe from the Actual Volume excel file and cleans data
+CAH_volume_df = pd.read_excel("Actual Volume.xlsx")
+CAH_volume_df.fillna(0, inplace = True)
+CAH_volume_df.rename(columns={"# Service Level Calls Offered":"Date", "Unnamed: 1":"Start of Week", "Unnamed: 2":"Day of Week", "Department":"Advisor", "Unnamed: 4":"Agency", "Unnamed: 5":"Agency Helpline", "Unnamed: 6":"ASU", "Unnamed: 7":"ASU Set", "Unnamed: 8":"Claims Back Office", "Unnamed: 9":"Claims Hertz", "Unnamed: 10":"Claims Lead Line", "Unnamed: 11":"Claims Material Damage", "Unnamed: 12":"Claims Service Center", "Unnamed: 13":"Claims Team Lead", "Unnamed: 14":"Client Service", "Unnamed: 15":"Client Service Experts", "Unnamed: 16":"Client Service Set", "Unnamed: 17":"Sales", "Unnamed: 18":"Sales Experts", "Unnamed: 19":"Service Desk", "Unnamed: 20":"Underwriting", "Unnamed: 21":"Unite", "Unnamed: 22":"Unspecified", "Unnamed: 23":"Workforce"}, inplace=True)
+CAH_volume_df.drop(index=0, inplace=True)
+     # Deletes columns for units that no longer exist or that we do not forecast for
+CAH_volume_df.drop(["Advisor", "Agency Helpline", "ASU", "ASU Set", "Claims Back Office", "Claims Hertz", "Claims Lead Line", "Claims Material Damage", "Claims Service Center", "Claims Team Lead", "Client Service Set", "Service Desk", "Underwriting", "Unite", "Unspecified", "Workforce"], axis = 1, inplace = True)
+     # Combines Sales and Service Experts, since they are forecasted as one unit
+CAH_volume_df["Experts"] = CAH_volume_df["Sales Experts"] + CAH_volume_df["Client Service Experts"]
+CAH_volume_df.drop(["Sales Experts", "Client Service Experts"], axis = 1, inplace = True)
+    # Changes the Date column to objects instead of strings and adds a Year column
+CAH_volume_df["Date"] = pd.to_datetime(CAH_volume_df.Date)
+CAH_volume_df["Year"] = CAH_volume_df["Date"].dt.strftime('%Y')
+>>>>>>> 106fbd7aada7dddd35c74ef2a58044e5155f1399
 
 # Creates the dataframe from the Define Matching Weeks excel file and cleans data
 define_matching_weeks_df = pd.read_excel("Define Matching Weeks.xlsx")
 define_matching_weeks_df.fillna("none", inplace = True)
 
+<<<<<<< HEAD
 # Defines SQL Queries
 genysis_sql="""
 Select cast(EchoPassDate as Date) as Date, sum(Offered) as Offered, Mdivqueue as Queue
@@ -106,6 +128,59 @@ print("Fetching data from EchoPass database...")
 cursor.execute(genysis_all_sql)
 results = cursor.fetchall()
 EchoPass_volume_df = pd.DataFrame.from_records(results, columns=[col[0] for col in cursor.description])
+=======
+# Defines SQL queries
+cisco_sql = """
+Select cti.DateTime, cti.PrecisionQueueID, cti.ODSDataSourceID, dpq.EnterpriseName, dpq.Dept_Name, CallsOfferedRouted + CallsRequeried as CallsOffered
+From AcqCiscoAW.Call_Type_SG_Interval cti
+left join ArcCiscoAW.V_CallDataCisco_Dim_Precision_Queue dpq
+	on REPLACE(dpq.PrecisionQueueID, '~', '') = concat(cti.PrecisionQueueID, ODSDataSourceID)
+Where cast(cti.DateTime as time) > '07:00:01'
+And cast(cti.Datetime as time) < '21:59:59'
+And cti.DateTime > ?
+And cti.DateTime < ?
+"""
+
+cisco_year_sql = '''Select sum(CallsOfferedRouted + CallsRequeried) as CallsOffered
+  From AcqCiscoAW.Call_Type_SG_Interval cti
+  left join ArcCiscoAW.V_CallDataCisco_Dim_Precision_Queue dpq
+  on REPLACE(dpq.PrecisionQueueID, '~', '') = concat(cti.PrecisionQueueID, ODSDataSourceID)
+  Where cast(cti.DateTime as date) > '2018-02-28'
+  And cast(cti.DateTime as time) > '07:00:01'
+  And cast(cti.Datetime as time) < '21:59:59'
+  and datepart(year, cast(cti.Datetime as date)) = ?
+  And dpq.Dept_Name = ?
+  '''
+
+cisco_by_date_sql ="""
+Select cti.DateTime as Date, CallsOfferedRouted + CallsRequeried as CallsOffered
+From AcqCiscoAW.Call_Type_SG_Interval cti
+left join ArcCiscoAW.V_CallData Cisco_Dim_Precision_Queue dpq
+	on REPLACE(dpq.PrecisionQueueID, '~', '') = concat(cti.PrecisionQueueID, ODSDataSourceID)
+Where cast(cti.DateTime as time) > '07:00:01'
+And cast(cti.Datetime as time) < '21:59:59'
+And cti.DateTime > '2018-02-28'
+And dpq.Dept_Name = ?
+"""
+
+cisco_all_sql = """
+Select cast(cti.DateTime as date) as 'Date', dpq.Dept_Name, sum(CallsOfferedRouted + CallsRequeried) as CallsOffered
+From OperationalDataStore.AcqCiscoAW.Call_Type_SG_Interval cti
+left join OperationalDataStore.ArcCiscoAW.V_CallDataCisco_Dim_Precision_Queue dpq
+	on REPLACE(dpq.PrecisionQueueID, '~', '') = concat(cti.PrecisionQueueID, ODSDataSourceID)
+Where cast(cti.DateTime as time) > '07:00:01'
+And cast(cti.Datetime as time) < '21:59:59'
+And dpq.Dept_Name in ('Sales Experts','Client Service Experts','Client Service','Sales','Agency')
+Group by cast(cti.DateTime as date), dpq.Dept_Name
+Order by cast(cti.DateTime as date)
+"""
+
+# Creates a dataframe of all Cisco volume in the database
+print("Fetching data from ODS database...")
+cursor.execute(cisco_all_sql)
+results = cursor.fetchall()
+ODS_volume_df = pd.DataFrame.from_records(results, columns=[col[0] for col in cursor.description])
+>>>>>>> 106fbd7aada7dddd35c74ef2a58044e5155f1399
 
 # Defines helper functions
 
@@ -200,6 +275,7 @@ def day_volume(date, unit):
             return master_volume_dict[date]
 
         
+<<<<<<< HEAD
     temp_df1 = EchoPass_volume_df.loc[EchoPass_volume_df["Date"] == to_iso(object_to_str(date))]
     try:
         output = temp_df1.loc[temp_df1["Group"] == unit, "Offered"].item()
@@ -208,6 +284,24 @@ def day_volume(date, unit):
     master_volume_dict[date] = output
     return output
 
+=======
+    if date >= dt.date(2023, 1, 1):
+        if unit == "Experts":
+            return day_volume(object_to_str(date), "Sales Experts") + day_volume(object_to_str(date), "Client Service Experts")
+        temp_df2 = ODS_volume_df[ODS_volume_df["Date"] == to_iso(object_to_str(date))]
+        try:
+            output = temp_df2.loc[temp_df2['Dept_Name'] == unit, 'CallsOffered'].values[0]
+        except:
+            output = 0
+        master_volume_dict[date] = output
+        print(output)
+        return output
+    else:
+        temp_df1 = CAH_volume_df.loc[CAH_volume_df["Date"] == to_iso(object_to_str(date))]
+        output = temp_df1[unit].sum()
+        master_volume_dict[date] = output
+        return output
+>>>>>>> 106fbd7aada7dddd35c74ef2a58044e5155f1399
 
     
 
@@ -225,6 +319,7 @@ def week_volume(start_of_week, unit):
 
 def dataframe(unit):
     """Returns a dataframe with all daily volume data for a unit."""
+<<<<<<< HEAD
     conn = pyodbc.connect('DRIVER={SQL Server};SERVER=camrptsql01;DATABASE=EchoPass;Trusted_Connection=yes')
     cursor = conn.cursor()
     cursor.execute(genysis_by_date_sql, unit)
@@ -232,19 +327,37 @@ def dataframe(unit):
     df = pd.DataFrame.from_records(term_list, columns=[col[0] for col in cursor.description])
     df = df.groupby(["Date"], as_index=False).sum()
     df.rename(columns={"Date": "ds", "Offered": "y"}, inplace=True)
+=======
+    conn = pyodbc.connect('DRIVER={SQL Server};SERVER=aahssdbods.amfam.com;DATABASE=OperationalDataStore;Trusted_Connection=yes')
+    cursor = conn.cursor()
+    cursor.execute(cisco_by_date_sql, unit)
+    term_list = cursor.fetchall()
+    df = pd.DataFrame.from_records(term_list, columns=[col[0] for col in cursor.description])
+    df["Date"] = df["Date"].dt.date
+    df = df.groupby(["Date"], as_index=False).sum()
+    df.rename(columns={"Date": "ds", "CallsOffered": "y"}, inplace=True)
+>>>>>>> 106fbd7aada7dddd35c74ef2a58044e5155f1399
     return df
 
 
 def total_volume_in_range(start_date, end_date, unit):
     """Given start and end dates in mm/dd/yyyy format, returns total volume in that range. (end date excluded) (currently only works for dates after 3/1/2018)"""
+<<<<<<< HEAD
     conn = pyodbc.connect('DRIVER={SQL Server};SERVER=camrptsql01;DATABASE=EchoPass;Trusted_Connection=yes')
+=======
+    conn = pyodbc.connect('DRIVER={SQL Server};SERVER=aahssdbods.amfam.com;DATABASE=OperationalDataStore;Trusted_Connection=yes')
+>>>>>>> 106fbd7aada7dddd35c74ef2a58044e5155f1399
     cursor = conn.cursor()
     if unit == "Experts":
         return total_volume_in_range(start_date, end_date, "Sales Experts") + total_volume_in_range(start_date, end_date, "Client Service Experts")
     
     start_date = to_iso(start_date)
     end_date = to_iso(end_date)
+<<<<<<< HEAD
     cursor.execute(genysis_sql, start_date + ' 00:00:00', end_date + ' 00:00:00')
+=======
+    cursor.execute(cisco_sql, start_date + ' 00:00:00', end_date + ' 00:00:00')
+>>>>>>> 106fbd7aada7dddd35c74ef2a58044e5155f1399
     term_list = cursor.fetchall()
     df = pd.DataFrame.from_records(term_list, columns=[col[0] for col in cursor.description])
     return int(df.loc[df["Dept_Name"] == unit, "CallsOffered"].sum())
@@ -253,10 +366,24 @@ def total_volume_in_range(start_date, end_date, unit):
 
 def yearly_volume(year, unit):
     """Given a year entered as an interval, returns the total volume for that year."""
+<<<<<<< HEAD
     temp_df1 = EchoPass_volume_df.loc[EchoPass_volume_df["Group"] == unit]
     temp_df1['Year'] = pd.to_datetime(temp_df1['Date']).dt.year
     return temp_df1.loc[temp_df1['Year'] == year,'Offered'].sum()
 
+=======
+    conn = pyodbc.connect('DRIVER={SQL Server};SERVER=aahssdbods.amfam.com;DATABASE=OperationalDataStore;Trusted_Connection=yes')
+    cursor = conn.cursor()
+
+    if year <= 2023:
+        temp_df1 = CAH_volume_df.loc[CAH_volume_df["Year"] == str(year)]
+        return temp_df1[unit].sum()
+    else:
+        cursor.execute(cisco_year_sql, str(year), unit)
+        term_list = cursor.fetchall()
+        df = pd.DataFrame.from_records(term_list, columns=[col[0] for col in cursor.description])
+        return df.CallsOffered.sum()
+>>>>>>> 106fbd7aada7dddd35c74ef2a58044e5155f1399
 
 
 def gather_data(unit, start_date=start_of_week((object_to_str(today)),1)):
@@ -268,7 +395,11 @@ def gather_data(unit, start_date=start_of_week((object_to_str(today)),1)):
     global yearly_volume_dict
     global master_volume_dict
 
+<<<<<<< HEAD
     conn = pyodbc.connect('DRIVER={SQL Server};SERVER=camrptsql01;DATABASE=EchoPass;Trusted_Connection=yes')
+=======
+    conn = pyodbc.connect('DRIVER={SQL Server};SERVER=aahssdbods.amfam.com;DATABASE=OperationalDataStore;Trusted_Connection=yes')
+>>>>>>> 106fbd7aada7dddd35c74ef2a58044e5155f1399
     cursor = conn.cursor()
 
     if data_dict == None or data_date != start_date:
@@ -417,6 +548,7 @@ def gather_data(unit, start_date=start_of_week((object_to_str(today)),1)):
 
         # Filling in data_dict["wow_list"]
         for start in data_dict["working_week_historical_volume"]:
+<<<<<<< HEAD
             try:
                 temp_working_year = start[-4:]
                 for start2 in data_dict["week_to_compare_historical_volume"]:
@@ -425,6 +557,13 @@ def gather_data(unit, start_date=start_of_week((object_to_str(today)),1)):
                         data_dict["wow_list"].append(sum(data_dict["working_week_historical_volume"][start].values()) / sum(data_dict["week_to_compare_historical_volume"][start2].values()))
             except:
                 continue
+=======
+            temp_working_year = start[-4:]
+            for start2 in data_dict["week_to_compare_historical_volume"]:
+                temp_comparison_year = start2[-4:]
+                if temp_comparison_year == temp_working_year:
+                    data_dict["wow_list"].append(sum(data_dict["working_week_historical_volume"][start].values()) / sum(data_dict["week_to_compare_historical_volume"][start2].values()))
+>>>>>>> 106fbd7aada7dddd35c74ef2a58044e5155f1399
 
         # Filling in data_dict["week_prior_volume"]
         data_dict["week_prior_volume"] = week_volume(week_to_compare, unit)
@@ -434,6 +573,7 @@ def gather_data(unit, start_date=start_of_week((object_to_str(today)),1)):
 
         # Filling in data_dict["per_last_4_matching_volume"]
         for week in comparison_weeks:
+<<<<<<< HEAD
             try:
                 year = week[-4:]
                 if int(year) not in data_dict["yearly_volume_dict"] or data_dict["yearly_volume_dict"][int(year)] == 0:
@@ -453,6 +593,21 @@ def gather_data(unit, start_date=start_of_week((object_to_str(today)),1)):
                 + (sum(week_volume(start_of_week(week, -1), unit).values()) / data_dict["yearly_volume_dict"][int(week[-4:])]) + (sum(week_volume(start_of_week(week, -2), unit).values()) / data_dict["yearly_volume_dict"][int(week[-4:])])
             except:
                 continue    
+=======
+            year = week[-4:]
+            if int(year) not in data_dict["yearly_volume_dict"]:
+                continue
+            data_dict["per_last_4_matching_volume"][week[-4:]] = (sum(week_volume(week, unit).values()) / data_dict["yearly_volume_dict"][int(week[-4:])]) + (sum(week_volume(start_of_week(week), unit).values()) / data_dict["yearly_volume_dict"][int(week[-4:])])\
+            + (sum(week_volume(start_of_week(week, -1), unit).values()) / data_dict["yearly_volume_dict"][int(week[-4:])]) + (sum(week_volume(start_of_week(week, -2), unit).values()) / data_dict["yearly_volume_dict"][int(week[-4:])])
+
+        # Filling in data_dict["per_last_4_matching_volume"]
+        for week in data_dict["working_matching_weeks_list"]:
+            year = week[-4:]
+            if int(year) not in data_dict["yearly_volume_dict"]:
+                continue
+            data_dict["per_last_4_matching_volume"][week[-4:]] = (sum(week_volume(week, unit).values()) / data_dict["yearly_volume_dict"][int(week[-4:])]) + (sum(week_volume(start_of_week(week), unit).values()) / data_dict["yearly_volume_dict"][int(week[-4:])])\
+            + (sum(week_volume(start_of_week(week, -1), unit).values()) / data_dict["yearly_volume_dict"][int(week[-4:])]) + (sum(week_volume(start_of_week(week, -2), unit).values()) / data_dict["yearly_volume_dict"][int(week[-4:])])
+>>>>>>> 106fbd7aada7dddd35c74ef2a58044e5155f1399
             
         # Filling in data_dict["past_years_holiday_dow"]
         data_dict["holiday_name"] = None
@@ -594,6 +749,7 @@ def method_1(unit, start_date=start_of_week((object_to_str(today)),1)):
             else:
                 total_woy_per += data["matching_weeks_per_dict"][year]
                 count_woy_per += 1
+<<<<<<< HEAD
     if count_woy_per == 0:
         if data["holiday_name"] == None:
             avg_woy_per = normal_woy
@@ -601,6 +757,9 @@ def method_1(unit, start_date=start_of_week((object_to_str(today)),1)):
             avg_woy_per = holiday_woy
     else:
         avg_woy_per = total_woy_per / count_woy_per
+=======
+    avg_woy_per = total_woy_per / count_woy_per
+>>>>>>> 106fbd7aada7dddd35c74ef2a58044e5155f1399
     woy_output = round(avg_woy_per * year_output)
 
 
@@ -954,7 +1113,11 @@ def tactical_volume_forecast_v2(unit):
     """
     Returns the tactical (next 3 weeks) volume forecast using an elastic net model.
     """
+<<<<<<< HEAD
     conn = pyodbc.connect('DRIVER={SQL Server};SERVER=camrptsql01;DATABASE=EchoPass;Trusted_Connection=yes')
+=======
+    conn = pyodbc.connect('DRIVER={SQL Server};SERVER=aahssdbods.amfam.com;DATABASE=OperationalDataStore;Trusted_Connection=yes')
+>>>>>>> 106fbd7aada7dddd35c74ef2a58044e5155f1399
     cursor = conn.cursor()
     global queries_saved
     
@@ -1103,7 +1266,14 @@ def tactical_volume_forecast_v2(unit):
     print(queries_saved)
     print(final_answer)
     conn.close()
+<<<<<<< HEAD
     1/0
     return final_answer
 
 tactical_volume_forecast_v2("Solutions")
+=======
+    return final_answer
+
+
+print(method_1("Sales"))
+>>>>>>> 106fbd7aada7dddd35c74ef2a58044e5155f1399
