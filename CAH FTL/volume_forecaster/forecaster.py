@@ -532,6 +532,3 @@ def holiday_dow_per_volume_forecast(unit, start_date):
         avg_dow_per[weekday_dict[dow]]=total/count
     return avg_dow_per
 
-
-
-print(week_total_volume_forecast("Experts"))
