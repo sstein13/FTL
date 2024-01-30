@@ -15,10 +15,10 @@ def main(request):
         if "_" in unit_name:
             unit_name = unit_name.replace("_", " ")
         # import function to run
-        from volume_forecaster.forecaster import tactical_volume_forecast_v2
+        from volume_forecaster.forecaster import tactical_volume_forecast
         # call function
         global forecast
-        forecast = tactical_volume_forecast_v2(unit_name)
+        forecast = tactical_volume_forecast(unit_name)
         # return user to required page
         return HttpResponseRedirect("result/{}/".format(unit))
     return HttpResponse(template.render(context,request))
