@@ -517,5 +517,3 @@ def holiday_dow_per_volume_forecast(unit, start_date):
     return avg_dow_per
 
 
-
-print(tactical_volume_forecast("Midvale"))
