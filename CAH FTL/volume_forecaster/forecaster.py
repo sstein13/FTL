@@ -259,44 +259,46 @@ def week_total_volume_forecast(unit, start_date=start_of_week((object_to_str(tod
     # Eliminates outliers in per_matching_weeks and calculates average
     count = 0
     total = 0
-    values = []
-    for start in per_matching_weeks:
-        values.append(list(per_matching_weeks.values()))
+    values = list(per_matching_weeks.values())
     Q1 = np.percentile(values, 25)
     Q3 = np.percentile(values, 75)
     IQR = Q3 - Q1
-    upper = Q3 + 1.5 * IQR
-    lower = Q1 - 1.5 * IQR
-    for start in list(per_matching_weeks):
-        if per_matching_weeks[start] >= upper:
-            del per_matching_weeks[start]
-        elif per_matching_weeks[start] <= lower:
-            del per_matching_weeks[start]
-        else:
-            count += 1
-            total += per_matching_weeks[start]
-    avg_per_matching_weeks = total/count
+    if IQR == 0:
+        avg_per_matching_weeks = sum(values)/len(values)
+    else:
+        upper = Q3 + 1.5 * IQR
+        lower = Q1 - 1.5 * IQR
+        for start in list(per_matching_weeks):
+            if per_matching_weeks[start] >= upper:
+                del per_matching_weeks[start]
+            elif per_matching_weeks[start] <= lower:
+                del per_matching_weeks[start]
+            else:
+                count += 1
+                total += per_matching_weeks[start]
+        avg_per_matching_weeks = total/count
 
     # Eliminates outliers in last_4_percent_of_year and calculates average
     count = 0
     total = 0
-    values = []
-    for year in last_4_percent_of_year:
-        values.append(list(last_4_percent_of_year.values()))
+    values = list(last_4_percent_of_year.values())
     Q1 = np.percentile(values, 25)
     Q3 = np.percentile(values, 75)
     IQR = Q3 - Q1
-    upper = Q3 + 1.5 * IQR
-    lower = Q1 - 1.5 * IQR
-    for year in list(last_4_percent_of_year):
-        if last_4_percent_of_year[year] >= upper:
-            del last_4_percent_of_year[year]
-        elif last_4_percent_of_year[year] <= lower:
-            del last_4_percent_of_year[year]
-        else:
-            count += 1
-            total += last_4_percent_of_year[year]
-    avg_last_4_percent_of_year = total/count
+    if IQR == 0:
+        avg_last_4_percent_of_year = sum(values)/len(values)
+    else:
+        upper = Q3 + 1.5 * IQR
+        lower = Q1 - 1.5 * IQR
+        for year in list(last_4_percent_of_year):
+            if last_4_percent_of_year[year] >= upper:
+                del last_4_percent_of_year[year]
+            elif last_4_percent_of_year[year] <= lower:
+                del last_4_percent_of_year[year]
+            else:
+                count += 1
+                total += last_4_percent_of_year[year]
+        avg_last_4_percent_of_year = total/count
 
     # Forecasts the current year's total volume
     year_forecast = round((1 / avg_last_4_percent_of_year) * (sum(week_volume(start_of_week(comparison_week,-1),unit).values()) + sum(week_volume(start_of_week(comparison_week,-2),unit).values()) +\
@@ -315,23 +317,24 @@ def week_total_volume_forecast(unit, start_date=start_of_week((object_to_str(tod
     # Eliminates outliers in week_over_week_change and calculates average
     count = 0
     total = 0
-    values = []
-    for year in week_over_week_change:
-        values.append(list(week_over_week_change.values()))
+    values = list(week_over_week_change.values())
     Q1 = np.percentile(values, 25)
     Q3 = np.percentile(values, 75)
     IQR = Q3 - Q1
-    upper = Q3 + 1.5 * IQR
-    lower = Q1 - 1.5 * IQR
-    for year in list(week_over_week_change):
-        if week_over_week_change[year] >= upper:
-            del week_over_week_change[year]
-        elif week_over_week_change[year] <= lower:
-            del week_over_week_change[year]
-        else:
-            count += 1
-            total += week_over_week_change[year]
-    avg_week_over_week_change = total/count
+    if IQR == 0:
+        avg_week_over_week_change = sum(values)/len(values)
+    else:
+        upper = Q3 + 1.5 * IQR
+        lower = Q1 - 1.5 * IQR
+        for year in list(week_over_week_change):
+            if week_over_week_change[year] >= upper:
+                del week_over_week_change[year]
+            elif week_over_week_change[year] <= lower:
+                del week_over_week_change[year]
+            else:
+                count += 1
+                total += week_over_week_change[year]
+        avg_week_over_week_change = total/count
 
     # Forecasts week volume using method 2 (average week over week change from prior years)
     week_forecast_m2 = sum(week_volume(start_of_week(comparison_week,-1),unit).values()) * avg_week_over_week_change
@@ -347,23 +350,24 @@ def week_total_volume_forecast(unit, start_date=start_of_week((object_to_str(tod
     # Eliminates outliers in four_week_over_week_change and calculates average
     count = 0
     total = 0
-    values = []
-    for year in four_week_over_week_change:
-        values.append(list(four_week_over_week_change.values()))
+    values = list(four_week_over_week_change.values())
     Q1 = np.percentile(values, 25)
     Q3 = np.percentile(values, 75)
     IQR = Q3 - Q1
-    upper = Q3 + 1.5 * IQR
-    lower = Q1 - 1.5 * IQR
-    for year in list(four_week_over_week_change):
-        if four_week_over_week_change[year] >= upper:
-            del four_week_over_week_change[year]
-        elif four_week_over_week_change[year] <= lower:
-            del four_week_over_week_change[year]
-        else:
-            count += 1
-            total += four_week_over_week_change[year]
-    avg_four_week_over_week_change = total/count
+    if IQR == 0:
+        avg_four_week_over_week_change = sum(values)/len(values)
+    else:
+        upper = Q3 + 1.5 * IQR
+        lower = Q1 - 1.5 * IQR
+        for year in list(four_week_over_week_change):
+            if four_week_over_week_change[year] >= upper:
+                del four_week_over_week_change[year]
+            elif four_week_over_week_change[year] <= lower:
+                del four_week_over_week_change[year]
+            else:
+                count += 1
+                total += four_week_over_week_change[year]
+        avg_four_week_over_week_change = total/count
 
     # Forecasts week volume using method 3 (average 4 week over week change from prior years)
     week_forecast_m3 = ((sum(week_volume(start_of_week(comparison_week,-1),unit).values()) + sum(week_volume(start_of_week(comparison_week,-2),unit).values()) +\
@@ -407,23 +411,24 @@ def MH_week_total_volume_forecast(unit, start_date, holiday, yearly_volume_dict,
     # Eliminates outliers in last_4_percent_of_year and calculates average
     count = 0
     total = 0
-    values = []
-    for year in last_4_percent_of_year:
-        values.append(list(last_4_percent_of_year.values()))
+    values = list(last_4_percent_of_year.values())
     Q1 = np.percentile(values, 25)
     Q3 = np.percentile(values, 75)
     IQR = Q3 - Q1
-    upper = Q3 + 1.5 * IQR
-    lower = Q1 - 1.5 * IQR
-    for year in list(last_4_percent_of_year):
-        if last_4_percent_of_year[year] >= upper:
-            del last_4_percent_of_year[year]
-        elif last_4_percent_of_year[year] <= lower:
-            del last_4_percent_of_year[year]
-        else:
-            count += 1
-            total += last_4_percent_of_year[year]
-    avg_last_4_percent_of_year = total/count
+    if IQR == 0:
+        avg_last_4_percent_of_year = sum(values)/len(values)
+    else:
+        upper = Q3 + 1.5 * IQR
+        lower = Q1 - 1.5 * IQR
+        for year in list(last_4_percent_of_year):
+            if last_4_percent_of_year[year] >= upper:
+                del last_4_percent_of_year[year]
+            elif last_4_percent_of_year[year] <= lower:
+                del last_4_percent_of_year[year]
+            else:
+                count += 1
+                total += last_4_percent_of_year[year]
+        avg_last_4_percent_of_year = total/count
 
     # Forecasts the current year's total volume
     year_forecast = round((1 / avg_last_4_percent_of_year) * (sum(week_volume(start_of_week(comparison_week,-1),unit).values()) + sum(week_volume(start_of_week(comparison_week,-2),unit).values()) +\
