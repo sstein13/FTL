@@ -34,19 +34,19 @@ def result(request, unit_name):
     week2_forecast = forecast[week2]
     week3_forecast = forecast[week3]
 
-    week1_forecast_html = '<table class="table"><thead><tr><th scope="col">Day of Week</th><th scope="col">Volume Forecast</th></tr></thead>'
+    week1_forecast_html = '<table class="table"><thead><tr><th scope="col">Day of Week</th><th scope="col">Volume Forecast</th><th>Adjustment</th><th>Adjusted Forecast</th></tr></thead>'
     for dow in week1_forecast:
-        week1_forecast_html = week1_forecast_html + '<tr><th scope="row">' + dow + "</th><td>" + str(week1_forecast[dow]) + "</td></tr>"
+        week1_forecast_html = week1_forecast_html + '<tr><th scope="row">' + dow + '</th><td id="forecast-' + dow +'">' + str(week1_forecast[dow]) + '</td><input type="number" id="adjustment-' + dow +'" oninput="applyAdjustment("' + dow + '")"><td></td><td id="adjusted-forecast-' + dow +'">' + str(week1_forecast[dow]) + '</td></tr>'
     week1_forecast_html = week1_forecast_html + "</tbody></table>"
 
     week2_forecast_html = '<table class="table"><thead><tr><th scope="col">Day of Week</th><th scope="col">Volume Forecast</th></tr></thead>'
     for dow in week2_forecast:
-        week2_forecast_html = week2_forecast_html + '<tr><th scope="row">' + dow + "</th><td>" + str(week2_forecast[dow]) + "</td></tr>"
+        week2_forecast_html = week2_forecast_html + '<tr><th scope="row">' + dow + '</th><td id="forecast-' + dow +'">' + str(week1_forecast[dow]) + '</td><input type="number" id="adjustment-' + dow +'" oninput="applyAdjustment("' + dow + '")"><td></td><td id="adjusted-forecast-' + dow +'">' + str(week2_forecast[dow]) + '</td></tr>'
     week2_forecast_html = week2_forecast_html + "</tbody></table>"
 
     week3_forecast_html = '<table class="table"><thead><tr><th scope="col">Day of Week</th><th scope="col">Volume Forecast</th></tr></thead>'
     for dow in week3_forecast:
-        week3_forecast_html = week3_forecast_html + '<tr><th scope="row">' + dow + "</th><td>" + str(week3_forecast[dow]) + "</td></tr>"
+        week3_forecast_html = week3_forecast_html + '<tr><th scope="row">' + dow + '</th><td id="forecast-' + dow +'">' + str(week1_forecast[dow]) + '</td><input type="number" id="adjustment-' + dow +'" oninput="applyAdjustment("' + dow + '")"><td></td><td id="adjusted-forecast-' + dow +'">' + str(week3_forecast[dow]) + '</td></tr>'
     week3_forecast_html = week3_forecast_html + "</tbody></table>"
 
     context = {"unit":unit,

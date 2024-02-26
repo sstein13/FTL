@@ -4,11 +4,12 @@ import datetime as dt
 import numpy as np
 import pyodbc
 import holidays
-from sklearn.linear_model import ElasticNet, ElasticNetCV
-from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_squared_error
 
 # Connect to DB
-conn = pyodbc.connect('DRIVER={SQL Server};SERVER=camrptsql01;DATABASE=EchoPass;Trusted_Connection=yes')
+conn = pyodbc.connect('DRIVER={SQL Server};SERVER=aahssdbods.amfam.com;DATABASE=OperationalDataStore;Trusted_Connection=yes')
 cursor = conn.cursor()
 
 
@@ -19,24 +20,42 @@ weekday_dict = {0:"Monday", 1:"Tuesday", 2:"Wednesday", 3:"Thursday", 4:"Friday"
 moving_holidays = ["New Year's Day", "Juneteenth National Independence Day", "Independence Day", "Veterans Day", "Christmas Day"]
 static_holidays= ["Martin Luther King Jr. Day", "Washington's Birthday", "Memorial Day", "Labor Day", "Columbus Day", "Thanksgiving"]
 
+# Creates the dataframe from the Actual Volume excel file and cleans data
+CAH_volume_df = pd.read_excel("Actual Volume.xlsx")
+CAH_volume_df.fillna(0, inplace = True)
+CAH_volume_df.rename(columns={"# Service Level Calls Offered":"Date", "Unnamed: 1":"Start of Week", "Unnamed: 2":"Day of Week", "Department":"Advisor", "Unnamed: 4":"Agency", "Unnamed: 5":"Agency Helpline", "Unnamed: 6":"ASU", "Unnamed: 7":"ASU Set", "Unnamed: 8":"Claims Back Office", "Unnamed: 9":"Claims Hertz", "Unnamed: 10":"Claims Lead Line", "Unnamed: 11":"Claims Material Damage", "Unnamed: 12":"Claims Service Center", "Unnamed: 13":"Claims Team Lead", "Unnamed: 14":"Client Service", "Unnamed: 15":"Client Service Experts", "Unnamed: 16":"Client Service Set", "Unnamed: 17":"Sales", "Unnamed: 18":"Sales Experts", "Unnamed: 19":"Service Desk", "Unnamed: 20":"Underwriting", "Unnamed: 21":"Unite", "Unnamed: 22":"Unspecified", "Unnamed: 23":"Workforce"}, inplace=True)
+CAH_volume_df.drop(index=0, inplace=True)
+     # Deletes columns for units that no longer exist or that we do not forecast for
+CAH_volume_df.drop(["Advisor", "Agency Helpline", "ASU", "ASU Set", "Claims Back Office", "Claims Hertz", "Claims Lead Line", "Claims Material Damage", "Claims Service Center", "Claims Team Lead", "Client Service Set", "Service Desk", "Underwriting", "Unite", "Unspecified", "Workforce"], axis = 1, inplace = True)
+     # Combines Sales and Service Experts, since they are forecasted as one unit
+CAH_volume_df["Experts"] = CAH_volume_df["Sales Experts"] + CAH_volume_df["Client Service Experts"]
+CAH_volume_df.drop(["Sales Experts", "Client Service Experts"], axis = 1, inplace = True)
+    # Changes the Date column to objects instead of strings and adds a Year column
+CAH_volume_df["Date"] = pd.to_datetime(CAH_volume_df.Date)
+CAH_volume_df["Year"] = CAH_volume_df["Date"].dt.strftime('%Y')
+
 # Creates the dataframe from the Define Matching Weeks excel file and cleans data
 define_matching_weeks_df = pd.read_excel("Define Matching Weeks.xlsx")
 define_matching_weeks_df.fillna("none", inplace = True)
 
 # Defines SQL queries
-genesys_all_sql = """
-Select cast(EchoPassDate as Date) as Date, sum(Offered) as [CallsOffered], [Group] as [Dept_Name]
-From [EchoPass].[dbo].[GIM_Data]
-left join EchoPass.dbo.DepartmentMapping
-	on Mdivqueue = Queue
-Group By cast(EchoPassDate as Date), [Group]
+cisco_all_sql = """
+Select cast(cti.DateTime as date) as 'Date', dpq.Dept_Name, sum(CallsOfferedRouted + CallsRequeried) as CallsOffered
+From OperationalDataStore.AcqCiscoAW.Call_Type_SG_Interval cti
+left join OperationalDataStore.ArcCiscoAW.V_CallDataCisco_Dim_Precision_Queue dpq
+	on REPLACE(dpq.PrecisionQueueID, '~', '') = concat(cti.PrecisionQueueID, ODSDataSourceID)
+Where cast(cti.DateTime as time) > '07:00:01'
+And cast(cti.Datetime as time) < '21:59:59'
+And dpq.Dept_Name in ('Sales Experts','Client Service Experts','Client Service','Sales','Agency')
+Group by cast(cti.DateTime as date), dpq.Dept_Name
+Order by cast(cti.DateTime as date)
 """
 
-# Creates a dataframe of all Genesys volume in the database
-cursor.execute(genesys_all_sql)
+# Creates a dataframe of all Cisco volume in the database
+cursor.execute(cisco_all_sql)
 results = cursor.fetchall()
-EchoPass_volume_df = pd.DataFrame.from_records(results, columns=[col[0] for col in cursor.description])
-EchoPass_volume_df["Year"] = pd.to_datetime(EchoPass_volume_df["Date"]).dt.year
+ODS_volume_df = pd.DataFrame.from_records(results, columns=[col[0] for col in cursor.description])
+ODS_volume_df["Year"] = pd.to_datetime(ODS_volume_df["Date"]).dt.year
 
 # Defines helper functions
 def str_to_object(str_date):
@@ -118,12 +137,20 @@ def day_volume(date, unit):
 
     global cursor
 
-    temp_df2 = EchoPass_volume_df[EchoPass_volume_df["Date"] == to_iso(object_to_str(date))]
-    try:
-        output = temp_df2.loc[temp_df2['Dept_Name'] == unit, 'CallsOffered'].values[0]
-    except:
-        output = 0
-    return output
+        
+    if date >= dt.date(2023, 1, 1):
+        if unit == "Experts":
+            return day_volume(object_to_str(date), "Sales Experts") + day_volume(object_to_str(date), "Client Service Experts")
+        temp_df2 = ODS_volume_df[ODS_volume_df["Date"] == to_iso(object_to_str(date))]
+        try:
+            output = temp_df2.loc[temp_df2['Dept_Name'] == unit, 'CallsOffered'].values[0]
+        except:
+            output = 0
+        return output
+    else:
+        temp_df1 = CAH_volume_df.loc[CAH_volume_df["Date"] == to_iso(object_to_str(date))]
+        output = temp_df1[unit].sum()
+        return output
 
     
 
@@ -168,9 +195,6 @@ def holiday_id(start_of_week):
 def week_total_volume_forecast(unit, start_date=start_of_week((object_to_str(today)),1)):
     """Forecasts the total volume for a week given a Sunday start date entered in mm/dd/yyyy format"""
 
-    if unit == "Midvale":
-        unit = "Midvale Home & Auto"
-
     if str_to_object(start_date) > str_to_object(start_of_week((object_to_str(today)),1)):
         comparison_week = start_of_week((object_to_str(today)),1)
     else:
@@ -194,14 +218,23 @@ def week_total_volume_forecast(unit, start_date=start_of_week((object_to_str(tod
 
     # Creates a dictionary of total year volume for prior years
     yearly_volume_dict = {}
-    EchoPass_yearly_volume_df = EchoPass_volume_df.groupby(["Dept_Name","Year"]).sum(numeric_only=True).reset_index()
-    EchoPass_yearly_volume_df = EchoPass_yearly_volume_df.loc[EchoPass_yearly_volume_df["Dept_Name"] == unit]
-    EchoPass_yearly_volume_df.drop(columns=["Dept_Name"],inplace=True)
-    EchoPass_yearly_volume_df = EchoPass_volume_df.groupby(["Year"]).sum(numeric_only=True).reset_index()
-    EchoPass_yearly_volume_dict = EchoPass_yearly_volume_df.set_index("Year").to_dict('dict')
-    for year in EchoPass_yearly_volume_dict["CallsOffered"]:
+    ODS_yearly_volume_df = ODS_volume_df.groupby(["Dept_Name","Year"]).sum(numeric_only=True).reset_index()
+    if unit == "Experts":
+        ODS_yearly_volume_df = ODS_yearly_volume_df.loc[(ODS_yearly_volume_df["Dept_Name"] == "Client Service Experts") | (ODS_yearly_volume_df["Dept_Name"] == "Sales Experts")]
+    else:
+        ODS_yearly_volume_df = ODS_yearly_volume_df.loc[ODS_yearly_volume_df["Dept_Name"] == unit]
+    ODS_yearly_volume_df.drop(columns=["Dept_Name"],inplace=True)
+    ODS_yearly_volume_df = ODS_volume_df.groupby(["Year"]).sum(numeric_only=True).reset_index()
+    ODS_yearly_volume_dict = ODS_yearly_volume_df.set_index("Year").to_dict('dict')
+    CAH_yearly_volume_df = CAH_volume_df[["Year", unit]]
+    CAH_yearly_volume_df = CAH_yearly_volume_df.groupby(["Year"]).sum()
+    CAH_yearly_volume_df = CAH_yearly_volume_df[CAH_yearly_volume_df.index.astype(int)<=2018]
+    CAH_yearly_volume_dict = CAH_yearly_volume_df.to_dict('dict')
+    for year in CAH_yearly_volume_dict[unit]:
+        yearly_volume_dict[year]=CAH_yearly_volume_dict[unit][year]
+    for year in ODS_yearly_volume_dict["CallsOffered"]:
         if int(year)>2018:
-            yearly_volume_dict[str(year)]=EchoPass_yearly_volume_dict["CallsOffered"][year]
+            yearly_volume_dict[str(year)]=ODS_yearly_volume_dict["CallsOffered"][year]
 
     # Identifies if the week being forecasted is a moving holiday and, if so, skips to a different function
     holiday = holiday_id(start_date)
@@ -227,44 +260,46 @@ def week_total_volume_forecast(unit, start_date=start_of_week((object_to_str(tod
     # Eliminates outliers in per_matching_weeks and calculates average
     count = 0
     total = 0
-    values = []
-    for start in per_matching_weeks:
-        values.append(list(per_matching_weeks.values()))
+    values = list(per_matching_weeks.values())
     Q1 = np.percentile(values, 25)
     Q3 = np.percentile(values, 75)
     IQR = Q3 - Q1
-    upper = Q3 + 1.5 * IQR
-    lower = Q1 - 1.5 * IQR
-    for start in list(per_matching_weeks):
-        if per_matching_weeks[start] >= upper:
-            del per_matching_weeks[start]
-        elif per_matching_weeks[start] <= lower:
-            del per_matching_weeks[start]
-        else:
-            count += 1
-            total += per_matching_weeks[start]
-    avg_per_matching_weeks = total/count
+    if IQR == 0:
+        avg_per_matching_weeks = sum(values)/len(values)
+    else:
+        upper = Q3 + 1.5 * IQR
+        lower = Q1 - 1.5 * IQR
+        for start in list(per_matching_weeks):
+            if per_matching_weeks[start] >= upper:
+                del per_matching_weeks[start]
+            elif per_matching_weeks[start] <= lower:
+                del per_matching_weeks[start]
+            else:
+                count += 1
+                total += per_matching_weeks[start]
+        avg_per_matching_weeks = total/count
 
     # Eliminates outliers in last_4_percent_of_year and calculates average
     count = 0
     total = 0
-    values = []
-    for year in last_4_percent_of_year:
-        values.append(list(last_4_percent_of_year.values()))
+    values = list(last_4_percent_of_year.values())
     Q1 = np.percentile(values, 25)
     Q3 = np.percentile(values, 75)
     IQR = Q3 - Q1
-    upper = Q3 + 1.5 * IQR
-    lower = Q1 - 1.5 * IQR
-    for year in list(last_4_percent_of_year):
-        if last_4_percent_of_year[year] >= upper:
-            del last_4_percent_of_year[year]
-        elif last_4_percent_of_year[year] <= lower:
-            del last_4_percent_of_year[year]
-        else:
-            count += 1
-            total += last_4_percent_of_year[year]
-    avg_last_4_percent_of_year = total/count
+    if IQR == 0:
+        avg_last_4_percent_of_year = sum(values)/len(values)
+    else:
+        upper = Q3 + 1.5 * IQR
+        lower = Q1 - 1.5 * IQR
+        for year in list(last_4_percent_of_year):
+            if last_4_percent_of_year[year] >= upper:
+                del last_4_percent_of_year[year]
+            elif last_4_percent_of_year[year] <= lower:
+                del last_4_percent_of_year[year]
+            else:
+                count += 1
+                total += last_4_percent_of_year[year]
+        avg_last_4_percent_of_year = total/count
 
     # Forecasts the current year's total volume
     year_forecast = round((1 / avg_last_4_percent_of_year) * (sum(week_volume(start_of_week(comparison_week,-1),unit).values()) + sum(week_volume(start_of_week(comparison_week,-2),unit).values()) +\
@@ -283,23 +318,24 @@ def week_total_volume_forecast(unit, start_date=start_of_week((object_to_str(tod
     # Eliminates outliers in week_over_week_change and calculates average
     count = 0
     total = 0
-    values = []
-    for year in week_over_week_change:
-        values.append(list(week_over_week_change.values()))
+    values = list(week_over_week_change.values())
     Q1 = np.percentile(values, 25)
     Q3 = np.percentile(values, 75)
     IQR = Q3 - Q1
-    upper = Q3 + 1.5 * IQR
-    lower = Q1 - 1.5 * IQR
-    for year in list(week_over_week_change):
-        if week_over_week_change[year] >= upper:
-            del week_over_week_change[year]
-        elif week_over_week_change[year] <= lower:
-            del week_over_week_change[year]
-        else:
-            count += 1
-            total += week_over_week_change[year]
-    avg_week_over_week_change = total/count
+    if IQR == 0:
+        avg_week_over_week_change = sum(values)/len(values)
+    else:
+        upper = Q3 + 1.5 * IQR
+        lower = Q1 - 1.5 * IQR
+        for year in list(week_over_week_change):
+            if week_over_week_change[year] >= upper:
+                del week_over_week_change[year]
+            elif week_over_week_change[year] <= lower:
+                del week_over_week_change[year]
+            else:
+                count += 1
+                total += week_over_week_change[year]
+        avg_week_over_week_change = total/count
 
     # Forecasts week volume using method 2 (average week over week change from prior years)
     week_forecast_m2 = sum(week_volume(start_of_week(comparison_week,-1),unit).values()) * avg_week_over_week_change
@@ -315,23 +351,24 @@ def week_total_volume_forecast(unit, start_date=start_of_week((object_to_str(tod
     # Eliminates outliers in four_week_over_week_change and calculates average
     count = 0
     total = 0
-    values = []
-    for year in four_week_over_week_change:
-        values.append(list(four_week_over_week_change.values()))
+    values = list(four_week_over_week_change.values())
     Q1 = np.percentile(values, 25)
     Q3 = np.percentile(values, 75)
     IQR = Q3 - Q1
-    upper = Q3 + 1.5 * IQR
-    lower = Q1 - 1.5 * IQR
-    for year in list(four_week_over_week_change):
-        if four_week_over_week_change[year] >= upper:
-            del four_week_over_week_change[year]
-        elif four_week_over_week_change[year] <= lower:
-            del four_week_over_week_change[year]
-        else:
-            count += 1
-            total += four_week_over_week_change[year]
-    avg_four_week_over_week_change = total/count
+    if IQR == 0:
+        avg_four_week_over_week_change = sum(values)/len(values)
+    else:
+        upper = Q3 + 1.5 * IQR
+        lower = Q1 - 1.5 * IQR
+        for year in list(four_week_over_week_change):
+            if four_week_over_week_change[year] >= upper:
+                del four_week_over_week_change[year]
+            elif four_week_over_week_change[year] <= lower:
+                del four_week_over_week_change[year]
+            else:
+                count += 1
+                total += four_week_over_week_change[year]
+        avg_four_week_over_week_change = total/count
 
     # Forecasts week volume using method 3 (average 4 week over week change from prior years)
     week_forecast_m3 = ((sum(week_volume(start_of_week(comparison_week,-1),unit).values()) + sum(week_volume(start_of_week(comparison_week,-2),unit).values()) +\
@@ -344,8 +381,6 @@ def week_total_volume_forecast(unit, start_date=start_of_week((object_to_str(tod
 
 def MH_week_total_volume_forecast(unit, start_date, holiday, yearly_volume_dict, comparison_week, comparison_week_matching_weeks_list):
     """Forecasts the total volume for a week when it is a moving holiday by averaging the week of year volume % for each year where the holiday fell on the same dow"""
-    if unit == "Midvale":
-        unit = "Midvale Home & Auto"
     total_matching_week_volume = {}
     for year in range(2012,int(holiday["Date"][-4:])):
         if str(year) not in yearly_volume_dict:
@@ -377,23 +412,24 @@ def MH_week_total_volume_forecast(unit, start_date, holiday, yearly_volume_dict,
     # Eliminates outliers in last_4_percent_of_year and calculates average
     count = 0
     total = 0
-    values = []
-    for year in last_4_percent_of_year:
-        values.append(list(last_4_percent_of_year.values()))
+    values = list(last_4_percent_of_year.values())
     Q1 = np.percentile(values, 25)
     Q3 = np.percentile(values, 75)
     IQR = Q3 - Q1
-    upper = Q3 + 1.5 * IQR
-    lower = Q1 - 1.5 * IQR
-    for year in list(last_4_percent_of_year):
-        if last_4_percent_of_year[year] >= upper:
-            del last_4_percent_of_year[year]
-        elif last_4_percent_of_year[year] <= lower:
-            del last_4_percent_of_year[year]
-        else:
-            count += 1
-            total += last_4_percent_of_year[year]
-    avg_last_4_percent_of_year = total/count
+    if IQR == 0:
+        avg_last_4_percent_of_year = sum(values)/len(values)
+    else:
+        upper = Q3 + 1.5 * IQR
+        lower = Q1 - 1.5 * IQR
+        for year in list(last_4_percent_of_year):
+            if last_4_percent_of_year[year] >= upper:
+                del last_4_percent_of_year[year]
+            elif last_4_percent_of_year[year] <= lower:
+                del last_4_percent_of_year[year]
+            else:
+                count += 1
+                total += last_4_percent_of_year[year]
+        avg_last_4_percent_of_year = total/count
 
     # Forecasts the current year's total volume
     year_forecast = round((1 / avg_last_4_percent_of_year) * (sum(week_volume(start_of_week(comparison_week,-1),unit).values()) + sum(week_volume(start_of_week(comparison_week,-2),unit).values()) +\
@@ -406,15 +442,18 @@ def MH_week_total_volume_forecast(unit, start_date, holiday, yearly_volume_dict,
 
     
 
-def tactical_volume_forecast(unit, start_date=start_of_week((object_to_str(today)),1)):
+def tactical_volume_forecast(unit, num_weeks, start_date=start_of_week((object_to_str(today)),1)):
     """Forecasts the weekly volume for the next 3 weeks"""
-    if unit == "Midvale":
-        unit = "Midvale Home & Auto"
+    # Prepping past data for meta-model training
+    if str_to_object(start_date) > str_to_object(start_of_week((object_to_str(today)),1)):
+        comparison_week = start_of_week((object_to_str(today)),1)
+    else:
+        comparison_week = start_date
     accuracy_dict = {}
     num_training_weeks = 1
     holiday_avoidance_offset = 0
     while num_training_weeks <= 5:
-        current_week = object_to_str(str_to_object(start_date) - dt.timedelta(weeks=num_training_weeks+holiday_avoidance_offset+1))
+        current_week = object_to_str(str_to_object(comparison_week) - dt.timedelta(weeks=num_training_weeks+holiday_avoidance_offset+1))
         if holiday_id(current_week)["Type"] != "No Holiday":
             holiday_avoidance_offset += 1
             continue
@@ -423,37 +462,47 @@ def tactical_volume_forecast(unit, start_date=start_of_week((object_to_str(today
         num_training_weeks += 1
     df=pd.DataFrame(accuracy_dict)
     df=df.transpose()
+    print(df)
     X = df[[1,2,3]]
     y = df['Actual']
-    elastic = ElasticNetCV()
-    elastic.fit(X,y)
-    forecast = {}
-    predict = {}
-    num_forecasting_weeks = 0
-    while num_forecasting_weeks < 3:
-        current_week = object_to_str(str_to_object(start_date) + dt.timedelta(weeks=num_forecasting_weeks))
-        forecast = week_total_volume_forecast(unit, current_week)
+
+    # Prepping future data for meta-model forecasting
+    forecasting_dict = {}
+    num_forecasting_weeks = 1
+    while num_forecasting_weeks <= num_weeks:
+        current_week = object_to_str(str_to_object(start_date) + dt.timedelta(weeks=num_forecasting_weeks-1))
+        forecasting_dict[current_week]=week_total_volume_forecast(unit, current_week)
+        num_forecasting_weeks += 1
+    future_df=pd.DataFrame(forecasting_dict)
+    future_df=future_df.transpose()
+
+
+    X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
+    meta_model = RandomForestRegressor(n_estimators=100, random_state=42)
+    meta_model.fit(X_train, y_train)
+    future_forecasts = {}
+    num_forecasting_weeks = 1
+    while num_forecasting_weeks <= num_weeks:
+        current_week = object_to_str(str_to_object(start_date) + dt.timedelta(weeks=num_forecasting_weeks-1))
         if holiday_id(current_week)["Type"] == "Moving Holiday":
-            predict[current_week] = forecast
+            future_forecasts[current_week] = week_total_volume_forecast(unit, current_week)
         else:
-            predict[current_week] = int(elastic.predict([[forecast[1],forecast[2],forecast[3]]]).item())
-        num_forecasting_weeks +=1
-    if unit == "Midvale Home & Auto":
-        final_answer={"unit":"Midvale"}
-    else:
-        final_answer={"unit":unit}
-    for start in predict:
-        dow_forecast = dow_per_volume_forecast(unit,start)
-        final_answer[start]={}
+            future_forecasts[current_week] = meta_model.predict(future_df.loc[current_week].values.reshape(1, -1))[0]
+            num_forecasting_weeks += 1
+   
+
+    final_answer = {"unit": unit}
+    for start in future_forecasts:
+        dow_forecast = dow_per_volume_forecast(unit, start)
+        final_answer[start] = {}
         for dow in dow_forecast:
-            final_answer[start][dow] = round(dow_forecast[dow] * predict[start])
+            final_answer[start][dow] = round(dow_forecast[dow] * future_forecasts[start])
+
     return final_answer
 
 
 def dow_per_volume_forecast(unit, start_date=start_of_week((object_to_str(today)),1)):
     """Forecasts the day of week percents using the average of recent prior weeks for a week given a Sunday start date entered in mm/dd/yyyy format"""
-    if unit == "Midvale":
-        unit = "Midvale Home & Auto"
     if str_to_object(start_date) > str_to_object(start_of_week((object_to_str(today)),1)):
         comparison_week = start_of_week((object_to_str(today)),1)
     else:
@@ -484,8 +533,6 @@ def dow_per_volume_forecast(unit, start_date=start_of_week((object_to_str(today)
 
 def holiday_dow_per_volume_forecast(unit, start_date):
     """Forecasts the day of week percents using the average of prior years where the holiday fell on the same dow"""
-    if unit == "Midvale":
-        unit = "Midvale Home & Auto"
     holiday_info = holiday_id(start_date)
     total_matching_week_volume = {}
     for year in range(2012,int(holiday_info["Date"][-4:])):
@@ -511,6 +558,4 @@ def holiday_dow_per_volume_forecast(unit, start_date):
         avg_dow_per[weekday_dict[dow]]=total/count
     return avg_dow_per
 
-
-
-print(tactical_volume_forecast("Midvale"))
+print(tactical_volume_forecast("Sales",8,"03/17/2024"))
