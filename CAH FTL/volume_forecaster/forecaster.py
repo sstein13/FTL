@@ -485,6 +485,7 @@ def tactical_volume_forecast(unit, num_weeks, start_date=start_of_week((object_t
         current_week = object_to_str(str_to_object(start_date) + dt.timedelta(weeks=num_forecasting_weeks-1))
         if holiday_id(current_week)["Type"] == "Moving Holiday":
             future_forecasts[current_week] = week_total_volume_forecast(unit, current_week)
+            num_forecasting_weeks += 1
         else:
             future_forecasts[current_week] = meta_model.predict(future_df.loc[current_week].values.reshape(1, -1))[0]
             num_forecasting_weeks += 1
