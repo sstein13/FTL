@@ -7,6 +7,11 @@
   <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.4/jquery.min.js"></script>
   <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
+  <script src ="https://cdnjs.cloudflare.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>  
+  <script src ="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.15.1/moment.min.js"></script>  
+  <script src ="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datetimepicker/4.7.14/js/bootstrap-datetimepicker.min.js"></script>  
+  <link rel ="stylesheet" href ="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.3.7/css/bootstrap.min.css">  
+  <link rel ="stylesheet" href ="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datetimepicker/4.7.14/css/bootstrap-datetimepicker.min.css">
 </head>
 <body>
 
@@ -20,22 +25,80 @@
       <option value="Midvale" id="Midvale">Midvale</option>
       <option value="Commercial" id="Commercial">Commercial</option>
     </select><br/><br/>
-  
-    <form method="post">
-      {% csrf_token %}
-      <button href="/volume_forecaster/" class="btn btn-info" role="button" id="forecast_button" type="submit" name="forecast_button" value="none">Get Forecast</button>
-    </form>
-  
-  </div>
-  
-  <script>
-    function changeLink() {
-      var selectedUnit = document.getElementById("unit").value;
-      var unitLink = "/volume_forecaster/result/" + selectedUnit;
-      document.getElementById("forecast_button").href = unitLink;
-      document.getElementById("forecast_button").value = selectedUnit;
-    }
-  </script>
+
+    
+    <p>What week should the forecast start?</p>
+    <div class="row">
+      <div class='col-sm-2'>
+          <input type='text' class="form-control" id='picker' >
+      </div>
+    </div>
+    <script type="text/javascript">
+       $(function () {
+        var today = new Date();
+        var nextSunday = new Date();
+        nextSunday.setDate(today.getDate() + (7 - today.getDay()));
+       });
+    </script><br/>
+
+
+<form method="post" id="forecast_form">
+  {% csrf_token %}
+  <input type="hidden" id="selectedDate" name="selectedDate" value="">
+
+  <p>Select number of weeks to forecast:</p>
+  <select class="form-select" id="weeks_to_forecast" name="weeks_to_forecast">
+    <option value="1">1 week</option>
+    <option value="2">2 weeks</option>
+    <option value="3" selected>3 weeks</option>
+    <option value="4">4 weeks</option>
+    <option value="5">5 weeks</option>
+    <option value="6">6 weeks</option>
+    <option value="7">7 weeks</option>
+    <option value="8">8 weeks</option>
+  </select>  <br/><br/>
+
+
+  <button class="btn btn-info" role="button" id="forecast_button" type="submit" name="forecast_button">Get Forecast</button>
+</form>
+
+</div>
+
+<script>
+  function changeLink() {
+    var selectedUnit = document.getElementById("unit").value;
+    var selectedWeeks = document.getElementById("weeks_to_forecast").value;
+    document.getElementById("forecast_button").value = selectedUnit;
+  }
+
+  $(function () {
+var today = new Date();
+var nextSunday = new Date();
+nextSunday.setDate(today.getDate() + (7 - today.getDay()));
+
+$('#picker').datetimepicker({
+  format: 'MM/DD/YYYY',
+  daysOfWeekDisabled: [1,2,3,4,5,6],
+  defaultDate: nextSunday
+});
+
+// Convert nextSunday to a moment.js object
+var selectedDate = moment(nextSunday);
+
+$('#picker').on('dp.change', function(e) {
+  // Check if e.date is a moment object and format it
+  if (moment.isMoment(e.date)) {
+    var formattedDate = e.date.format('MM/DD/YYYY');
+    $('#selectedDate').val(formattedDate);
+  } else {
+    console.error('Selected date is not a moment.js object:', e.date);
+  }
+});
+
+// Set the initial value of the hidden field
+$('#selectedDate').val(selectedDate.format('MM/DD/YYYY'));
+});
+</script>
 
 </body>
 </html>
