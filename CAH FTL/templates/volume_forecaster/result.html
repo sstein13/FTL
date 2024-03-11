@@ -18,11 +18,13 @@
   <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.4/jquery.min.js"></script>
   <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.16.9/xlsx.full.min.js"></script>
 </head>
 <body>
 
   <div class="container">
     <h1>{{ unit }} Tactical Forecast</h1>
+    <button onclick="exportTableToExcel()">Export to Excel</button>
     {{ forecasts_html|safe }}
   
   </div>
@@ -35,6 +37,7 @@ var weekTables = document.querySelectorAll('.week-forecast-table');
 weekTables.forEach(function(table, index) {
   var weekNumber = index + 1;
   adjustmentTypes[weekNumber] = 'number'; // Default to 'number' type
+let start_date = '{{ start_date|escapejs }}'
 });
 
 function setAdjustmentType(type, weekNumber) {
@@ -104,6 +107,33 @@ function applyAdjustment(id) {
     console.error('Element not found:', adjustedForecastId);
   }
 }
+
+function exportTableToExcel(){
+    /* Create a timestamp for the filename */
+    let now = new Date();
+    let datetime = now.toISOString().slice(0,19).replace(/[^0-9]/g, "");
+    let filename = 'ftl_forecast_' + datetime;
+
+    /* Create a new workbook */
+    let wb = XLSX.utils.book_new();
+
+    /* Find all table elements on the page */
+    let tables = document.querySelectorAll('table');
+
+    tables.forEach((table, index) => {
+        /* Convert the table to a worksheet */
+        let ws = XLSX.utils.table_to_sheet(table);
+        /* Add the worksheet to the workbook */
+        XLSX.utils.book_append_sheet(wb, ws, formatDateForID(table.id));
+    });
+
+    /* Generate a download */
+    XLSX.writeFile(wb, filename + '.xlsx');
+}
+
+function formatDateForID(date) {
+  return date.replace(/\//g, '');
+  }
 </script>
 
 </html>

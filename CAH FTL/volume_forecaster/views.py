@@ -40,11 +40,12 @@ def result(request, unit_name, formattedDate, weeks_to_forecast):
     context = {
         "unit": unit,
         "forecasts_html": forecasts_html,
+        "start_date": formattedDate
     }
     return HttpResponse(template.render(context, request))
 
 def generate_week_forecast_html(week_number, week_forecast, current_week_str):
-    week_forecast_html = '''<h3>Forecast for week starting on ''' + str(current_week_str) + '''</h3><table class="table"><thead><tr><th scope="col">Day of Week</th><th scope="col">Volume Forecast</th><th>Adjustment
+    week_forecast_html = '''<h3>Forecast for week starting on ''' + str(current_week_str) + '''</h3><table class="table" id=''' + str(current_week_str) + '''><thead><tr><th scope="col">Day of Week</th><th scope="col">Volume Forecast</th><th>Adjustment
 <button type="button" id="adjustment-type-number-week''' + str(week_number) + '''" class="adjustment-type-btn active" onclick="setAdjustmentType('number', ''' + str(week_number) + ''')" checked>#</button>
 <button type="button" id="adjustment-type-percent-week''' + str(week_number) + '''" class="adjustment-type-btn" onclick="setAdjustmentType('percent', ''' + str(week_number) + ''')">%</button></th><th>Adjusted Forecast</th></tr></thead>'''
     for dow in week_forecast:
