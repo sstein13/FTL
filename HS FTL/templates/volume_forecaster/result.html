@@ -1,5 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
+<style>
+  .adjustment-type-btn.active {
+  background-color: #5BC0DE; /* Color for active state */
+  color: white;
+}
+
+.adjustment-type-btn {
+  background-color: #f8f9fa; /* Color for non-active state */
+  color: black;
+}
+</style>
 <head>
   <title>Results</title>
   <meta charset="utf-8">
@@ -12,14 +23,87 @@
 
   <div class="container">
     <h1>{{ unit }} Tactical Forecast</h1>
-    <h3>Forecast for week starting on {{ week1 }}</h3>
-    {{ week1_forecast_html|safe }}
-    <h3>Forecast for week starting on {{ week2 }}</h3>
-    {{ week2_forecast_html|safe }}
-    <h3>Forecast for week starting on {{ week3 }}</h3>
-    {{ week3_forecast_html|safe }}
+    {{ forecasts_html|safe }}
   
   </div>
 
 </body>
+
+<script>
+var adjustmentTypes = {};
+var weekTables = document.querySelectorAll('.week-forecast-table');
+weekTables.forEach(function(table, index) {
+  var weekNumber = index + 1;
+  adjustmentTypes[weekNumber] = 'number'; // Default to 'number' type
+});
+
+function setAdjustmentType(type, weekNumber) {
+  adjustmentTypes[weekNumber] = type; // Set the adjustment type for the specific week
+
+  // Get all adjustment type buttons for the specific week
+  var numberButton = document.getElementById('adjustment-type-number-week' + weekNumber);
+  var percentButton = document.getElementById('adjustment-type-percent-week' + weekNumber);
+
+  // Remove 'active' class from both buttons
+  numberButton.classList.remove('active');
+  percentButton.classList.remove('active');
+
+  // Add 'active' class to the clicked button
+  var activeButton = type === 'number' ? numberButton : percentButton;
+  activeButton.classList.add('active');
+
+  // Trigger recalculation for all rows in the table
+  var daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  daysOfWeek.forEach(function(day) {
+    applyAdjustment('week' + weekNumber + '-' + day);
+  });
+}
+
+function applyAdjustment(id) {
+  console.log('applyAdjustment called with id:', id);
+  // Parse the week number and day of the week from the id
+  var parts = id.split('-');
+  var weekNumber = parts[0].replace('week', ''); // Remove the 'week' prefix to get the number
+  var day = parts[1];
+
+  // Construct the IDs for the forecast, adjustment input, and adjusted forecast
+  var forecastId = 'forecast-week' + weekNumber + '-' + day;
+  var adjustmentId = 'adjustment-week' + weekNumber + '-' + day;
+  var adjustedForecastId = 'adjusted-forecast-week' + weekNumber + '-' + day;
+
+  console.log('Looking for elements with IDs:', forecastId, adjustmentId, adjustedForecastId);
+
+  // Get the forecast value
+  var forecastElement = document.getElementById(forecastId);
+  var forecast = forecastElement ? parseFloat(forecastElement.textContent) : 0;
+
+  // Get the user's adjustment
+  var adjustmentElement = document.getElementById(adjustmentId);
+  var adjustmentValue = adjustmentElement ? adjustmentElement.value : '';
+  var adjustment = adjustmentValue ? parseFloat(adjustmentValue) : NaN;
+
+   // Use the adjustment type for the specific week
+   var adjustmentType = adjustmentTypes[weekNumber] || 'number'; // Default to 'number' if not set
+
+  // Calculate the adjusted forecast based on the adjustment type
+  var adjustedForecast;
+  if (isNaN(adjustment)) {
+    // If the adjustment is NaN (e.g., the input is blank), use the original forecast
+    adjustedForecast = forecast;
+  } else if (adjustmentType === 'percent') {
+    adjustedForecast = forecast * (1 + (adjustment / 100));
+  } else { // 'number' adjustment type
+    adjustedForecast = forecast + adjustment;
+  }
+
+  // Update the adjusted forecast cell
+  var adjustedForecastElement = document.getElementById(adjustedForecastId);
+  if (adjustedForecastElement) {
+    adjustedForecastElement.textContent = Math.round(adjustedForecast).toString();
+  } else {
+    console.error('Element not found:', adjustedForecastId);
+  }
+}
+</script>
+
 </html>

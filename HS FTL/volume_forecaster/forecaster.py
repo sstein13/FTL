@@ -4,8 +4,8 @@ import datetime as dt
 import numpy as np
 import pyodbc
 import holidays
-from sklearn.linear_model import ElasticNet, ElasticNetCV
-from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestRegressor
 
 # Connect to DB
 conn = pyodbc.connect('DRIVER={SQL Server};SERVER=camrptsql01;DATABASE=EchoPass;Trusted_Connection=yes')
@@ -411,15 +411,20 @@ def MH_week_total_volume_forecast(unit, start_date, holiday, yearly_volume_dict,
 
     
 
-def tactical_volume_forecast(unit, start_date=start_of_week((object_to_str(today)),1)):
+def tactical_volume_forecast(unit, num_weeks, start_date=start_of_week((object_to_str(today)),1)):
     """Forecasts the weekly volume for the next 3 weeks"""
     if unit == "Midvale":
         unit = "Midvale Home & Auto"
+    # Prepping past data for meta-model training
+    if str_to_object(start_date) > str_to_object(start_of_week((object_to_str(today)),1)):
+        comparison_week = start_of_week((object_to_str(today)),1)
+    else:
+        comparison_week = start_date
     accuracy_dict = {}
     num_training_weeks = 1
     holiday_avoidance_offset = 0
     while num_training_weeks <= 5:
-        current_week = object_to_str(str_to_object(start_date) - dt.timedelta(weeks=num_training_weeks+holiday_avoidance_offset+1))
+        current_week = object_to_str(str_to_object(comparison_week) - dt.timedelta(weeks=num_training_weeks+holiday_avoidance_offset+1))
         if holiday_id(current_week)["Type"] != "No Holiday":
             holiday_avoidance_offset += 1
             continue
@@ -430,28 +435,39 @@ def tactical_volume_forecast(unit, start_date=start_of_week((object_to_str(today
     df=df.transpose()
     X = df[[1,2,3]]
     y = df['Actual']
-    elastic = ElasticNetCV()
-    elastic.fit(X,y)
-    forecast = {}
-    predict = {}
-    num_forecasting_weeks = 0
-    while num_forecasting_weeks < 3:
-        current_week = object_to_str(str_to_object(start_date) + dt.timedelta(weeks=num_forecasting_weeks))
-        forecast = week_total_volume_forecast(unit, current_week)
+
+    # Prepping future data for meta-model forecasting
+    forecasting_dict = {}
+    num_forecasting_weeks = 1
+    while num_forecasting_weeks <= num_weeks:
+        current_week = object_to_str(str_to_object(start_date) + dt.timedelta(weeks=num_forecasting_weeks-1))
+        forecasting_dict[current_week]=week_total_volume_forecast(unit, current_week)
+        num_forecasting_weeks += 1
+    future_df=pd.DataFrame(forecasting_dict)
+    future_df=future_df.transpose()
+
+
+    X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
+    meta_model = RandomForestRegressor(n_estimators=100, random_state=42)
+    meta_model.fit(X_train, y_train)
+    future_forecasts = {}
+    num_forecasting_weeks = 1
+    while num_forecasting_weeks <= num_weeks:
+        current_week = object_to_str(str_to_object(start_date) + dt.timedelta(weeks=num_forecasting_weeks-1))
         if holiday_id(current_week)["Type"] == "Moving Holiday":
-            predict[current_week] = forecast
+            future_forecasts[current_week] = week_total_volume_forecast(unit, current_week)
         else:
-            predict[current_week] = int(elastic.predict([[forecast[1],forecast[2],forecast[3]]]).item())
-        num_forecasting_weeks +=1
-    if unit == "Midvale Home & Auto":
-        final_answer={"unit":"Midvale"}
-    else:
-        final_answer={"unit":unit}
-    for start in predict:
-        dow_forecast = dow_per_volume_forecast(unit,start)
-        final_answer[start]={}
+            future_forecasts[current_week] = meta_model.predict(future_df.loc[current_week].values.reshape(1, -1))[0]
+            num_forecasting_weeks += 1
+   
+
+    final_answer = {"unit": unit}
+    for start in future_forecasts:
+        dow_forecast = dow_per_volume_forecast(unit, start)
+        final_answer[start] = {}
         for dow in dow_forecast:
-            final_answer[start][dow] = round(dow_forecast[dow] * predict[start])
+            final_answer[start][dow] = round(dow_forecast[dow] * future_forecasts[start])
+
     return final_answer
 
 
